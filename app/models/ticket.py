@@ -1,5 +1,12 @@
 from pydantic import BaseModel
 
-class Ticket(BaseModel):
+class TicketCreate(BaseModel):
     name: str
-    email: str
+    id_card_number: str
+    date_of_birth: str
+    phone_number: str
+    boat_time: str
+
+class TicketResponse(TicketCreate):
+    ticket_id: str
+    qr: str
