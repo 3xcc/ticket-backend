@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlmodel import Session, select
 from app.models.ticket import Ticket, TicketCreate, TicketResponse, TicketValidationRequest
 from app.services.qr import generate_qr
-from app.main import get_session  # assumes you have a session dependency
+from app.db.main import get_session  # assumes you have a session dependency
 
 from datetime import datetime
 import uuid
