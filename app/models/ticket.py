@@ -19,7 +19,10 @@ class TicketCreate(SQLModel):
 
 class TicketResponse(TicketCreate):
     ticket_id: str
-    qr: Optional[str] = None  # Optional so it works for both creation and validation
+    qr: Optional[str] = None
+    status: Optional[str] = None
+    event: Optional[str] = None
+    timestamp: Optional[str] = None
 
 class TicketValidationRequest(BaseModel):
     payload: str

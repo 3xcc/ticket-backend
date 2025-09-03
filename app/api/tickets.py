@@ -29,8 +29,7 @@ def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
 def validate_ticket(body: TicketValidationRequest, session: Session = Depends(get_session)):
     ticket_id = body.payload.strip()
 
-    statement = select(Ticket).where(Ticket.ticket_id == ticket_id)
-    result = session.exec(statement).first()
+    result = session.exec(select(Ticket).where(Ticket.ticket_id == ticket_id)).first()
 
     if not result:
         raise HTTPException(status_code=404, detail="Ticket not found")
@@ -40,8 +39,12 @@ def validate_ticket(body: TicketValidationRequest, session: Session = Depends(ge
     return TicketResponse(
         name=result.name,
         id_card_number=result.id_card_number,
-        event="Generic Event",  # Extend Ticket model later if needed
+        date_of_birth=result.date_of_birth,
+        phone_number=result.phone_number,
+        ticket_id=result.ticket_id,
+        qr="",  # Optional: regenerate if needed
         status="valid",
+        event="Generic Event",
         timestamp=scanned_at
     )
 
