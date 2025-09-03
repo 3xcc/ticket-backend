@@ -2,9 +2,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlmodel import Session, select
 from app.models.ticket import Ticket, TicketCreate, TicketResponse, TicketValidationRequest
 from app.services.qr import generate_qr
-from app.db.session import get_session  # assumes you have a session dependency
-
-from datetime import datetime
+from app.db.session import get_session
+from datetime import datetime, timezone
 import uuid
 
 router = APIRouter()
@@ -26,7 +25,7 @@ def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
         print(f"Error in /tickets: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/validate_ticket")
+@router.post("/validate_ticket", response_model=TicketResponse)
 def validate_ticket(body: TicketValidationRequest, session: Session = Depends(get_session)):
     ticket_id = body.payload.strip()
 
@@ -36,14 +35,15 @@ def validate_ticket(body: TicketValidationRequest, session: Session = Depends(ge
     if not result:
         raise HTTPException(status_code=404, detail="Ticket not found")
 
-    # Optional: add a 'used' field to Ticket model to track check-ins
-    # For now, just return metadata
-    return {
-        "name": result.name,
-        "event": "Generic Event",  # You can extend Ticket model to include event
-        "status": "valid",
-        "timestamp": datetime.utcnow().isoformat()
-    }
+    scanned_at = datetime.now(timezone.utc).isoformat()
+
+    return TicketResponse(
+        name=result.name,
+        id_card_number=result.id_card_number,
+        event="Generic Event",  # Extend Ticket model later if needed
+        status="valid",
+        timestamp=scanned_at
+    )
 
 @router.get("/health")
 def health():

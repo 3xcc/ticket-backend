@@ -19,7 +19,7 @@ class TicketCreate(SQLModel):
 
 class TicketResponse(TicketCreate):
     ticket_id: str
-    qr: str
+    qr: Optional[str] = None  # Optional so it works for both creation and validation
 
 class TicketValidationRequest(BaseModel):
     payload: str

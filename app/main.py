@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import SQLModel
 from app.api import tickets
 from app.db.engine import engine
-
+from dotenv import load_dotenv
 # Optional: load .env in local dev
 try:
     from dotenv import load_dotenv
