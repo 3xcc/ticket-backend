@@ -30,7 +30,6 @@ class Ticket(TicketBase, table=True):
 
 
 class TicketResponse(SQLModel):
-    # Include every field your frontend needs
     name: str
     id_card_number: str
     date_of_birth: str
@@ -41,12 +40,8 @@ class TicketResponse(SQLModel):
     event: str
     timestamp: Optional[str] = None
 
-    # ORM serialization support
-    if V2:
-        model_config = ConfigDict(from_attributes=True)
-    else:
-        class Config:
-            orm_mode = True
+    class Config:
+        orm_mode = True
 
 
 class TicketValidationRequest(SQLModel):
