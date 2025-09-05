@@ -34,7 +34,23 @@ def validate_ticket(body: TicketValidationRequest, session: Session = Depends(ge
     if not result:
         raise HTTPException(status_code=404, detail="Ticket not found")
 
-    scanned_at = datetime.now(timezone.utc).isoformat()
+    if result.used:
+        return TicketResponse(
+            name=result.name,
+            id_card_number=result.id_card_number,
+            date_of_birth=result.date_of_birth,
+            phone_number=result.phone_number,
+            ticket_id=result.ticket_id,
+            qr="",
+            status="already_checked_in",
+            event=result.event,
+            timestamp=result.scanned_at
+        )
+
+    result.used = True
+    result.scanned_at = datetime.now(timezone.utc).isoformat()
+    session.add(result)
+    session.commit()
 
     return TicketResponse(
         name=result.name,
@@ -42,12 +58,31 @@ def validate_ticket(body: TicketValidationRequest, session: Session = Depends(ge
         date_of_birth=result.date_of_birth,
         phone_number=result.phone_number,
         ticket_id=result.ticket_id,
-        qr="",  # Optional: regenerate if needed
+        qr="",
         status="valid",
-        event="Generic Event",
-        timestamp=scanned_at
+        event=result.event,
+        timestamp=result.scanned_at
     )
+
 
 @router.get("/health")
 def health():
     return {"status": "ok"}
+
+@router.get("/tickets/all", response_model=list[TicketResponse])
+def get_all_tickets(session: Session = Depends(get_session)):
+    tickets = session.exec(select(Ticket)).all()
+    return [
+        TicketResponse(
+            name=t.name,
+            id_card_number=t.id_card_number,
+            date_of_birth=t.date_of_birth,
+            phone_number=t.phone_number,
+            ticket_id=t.ticket_id,
+            qr="",
+            status="already_checked_in" if t.used else "valid",
+            event=t.event,
+            timestamp=t.scanned_at
+        )
+        for t in tickets
+    ]
