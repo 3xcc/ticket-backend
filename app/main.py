@@ -1,40 +1,40 @@
+import os
+from dotenv import load_dotenv
+
+# Load .env in local dev; on Render this will simply pick up the existing env vars
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import SQLModel
-from app.api import tickets
 from app.db.engine import engine
-from dotenv import load_dotenv
-# Optional: load .env in local dev
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass  # Safe fallback if dotenv isn't installed
+from app.api.tickets import router as tickets_router
 
+# Instantiate the FastAPI app
 app = FastAPI(
     title="Ticket Manager API",
     description="Handles ticket creation, QR generation, and scanning workflows",
     version="0.2.0"
 )
 
-# CORS setup for frontend integration
+# CORS setup — tighten allow_origins once your frontend URL is known
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with Vercel domain later
+    allow_origins=[os.getenv("FRONTEND_URL", "*")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include ticket router
-app.include_router(tickets.router, prefix="/ticket", tags=["Tickets"])
+# Mount the tickets router under /ticket
+app.include_router(tickets_router, prefix="/ticket", tags=["Tickets"])
 
-# Health check
+# Simple health check
 @app.get("/")
 def root():
     return {"message": "Ticket Manager API is running"}
 
-# DB table creation on startup
+# On startup, create any missing tables in the bound database
 @app.on_event("startup")
 def on_startup():
     SQLModel.metadata.create_all(engine)
