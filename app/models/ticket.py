@@ -37,7 +37,7 @@ class TicketResponse(SQLModel):
     ticket_id: str
     qr: str
     status: str
-    event: str
+    event: Optional[str] = None
     timestamp: Optional[str] = None
 
     class Config:
