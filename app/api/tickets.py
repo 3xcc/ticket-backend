@@ -12,7 +12,18 @@ router = APIRouter()
 def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
     try:
         ticket_id = str(uuid.uuid4())
-        ticket = Ticket(ticket_id=ticket_id, **t.dict())
+
+        ticket = Ticket(
+            ticket_id=ticket_id,
+            name=t.name,
+            id_card_number=t.id_card_number,
+            date_of_birth=t.date_of_birth,
+            phone_number=t.phone_number,
+            event=t.event,
+            used=False,
+            scanned_at=None
+        )
+
         session.add(ticket)
         session.commit()
         session.refresh(ticket)
@@ -20,7 +31,17 @@ def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
         qr_payload = ticket.ticket_id
         qr = generate_qr(qr_payload)
 
-        return TicketResponse(**t.dict(), ticket_id=ticket_id, qr=qr)
+        return TicketResponse(
+            name=ticket.name,
+            id_card_number=ticket.id_card_number,
+            date_of_birth=ticket.date_of_birth,
+            phone_number=ticket.phone_number,
+            ticket_id=ticket.ticket_id,
+            qr=qr,
+            status="valid",
+            event=ticket.event,
+            timestamp=""
+        )
     except Exception as e:
         print(f"Error in /tickets: {e}")
         raise HTTPException(status_code=500, detail=str(e))
