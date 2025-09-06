@@ -27,7 +27,7 @@ app.add_middleware(
 )
 
 # Mount the tickets router under /ticket
-app.include_router(tickets_router, prefix="/ticket", tags=["Tickets"])
+app.include_router(tickets_router, tags=["Tickets"])
 
 # Simple health check
 @app.get("/")
