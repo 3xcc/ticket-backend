@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from sqlmodel import Session, select
+from sqlmodel import Session, select, delete
 from app.models.ticket import Ticket, TicketCreate, TicketResponse, TicketValidationRequest
 from app.services.qr import generate_qr
 from app.db.session import get_session
@@ -158,13 +158,9 @@ def delete_ticket(ticket_id: str, session: Session = Depends(get_session)):
 
 @router.delete("/tickets")
 def delete_all_tickets(confirm: bool = False, session: Session = Depends(get_session)):
-    """
-    Delete ALL tickets in the database.
-    Requires confirm=true query param to proceed.
-    """
     if not confirm:
         raise HTTPException(status_code=400, detail="Confirmation required to delete all tickets")
 
-    session.exec("DELETE FROM ticket")
+    session.exec(delete(Ticket))
     session.commit()
     return {"detail": "All tickets deleted successfully"}
