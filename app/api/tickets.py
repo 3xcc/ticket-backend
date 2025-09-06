@@ -107,7 +107,7 @@ def get_all_tickets(session: Session = Depends(get_session)):
         )
         for t in tickets
     ]
-]# --- Admin Management Endpoints ---
+# --- Admin Management Endpoints ---
 
 from fastapi import Body
 
