@@ -1,4 +1,3 @@
-# app/models/ticket.py
 from typing import Optional
 from uuid import uuid4
 from sqlmodel import SQLModel, Field
@@ -25,11 +24,13 @@ class TicketCreate(TicketBase):
 
 class Ticket(TicketBase, table=True):
     ticket_id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True, index=True)
+    ticket_number: Optional[str] = Field(default=None, index=True, unique=True)  # Human-friendly number
     used: bool = Field(default=False)
     scanned_at: Optional[str] = None
 
 
 class TicketResponse(SQLModel):
+    ticket_number: Optional[str] = None
     name: str
     id_card_number: str
     date_of_birth: str

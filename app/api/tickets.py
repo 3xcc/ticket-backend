@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends
-from sqlmodel import Session, select, delete
+from fastapi import APIRouter, HTTPException, Depends, Body
+from sqlmodel import Session, select, delete, func
 from app.models.ticket import Ticket, TicketCreate, TicketResponse, TicketValidationRequest
 from app.services.qr import generate_qr
 from app.db.session import get_session
@@ -8,13 +8,24 @@ import uuid
 
 router = APIRouter()
 
+# ---------------------------
+# Create Ticket
+# ---------------------------
 @router.post("/tickets", response_model=TicketResponse)
 def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
     try:
         ticket_id = str(uuid.uuid4())
 
+        # Get current max ticket_number and increment
+        max_num = session.exec(select(func.max(Ticket.ticket_number))).one_or_none()
+        try:
+            next_num = int(max_num or 0) + 1
+        except ValueError:
+            next_num = 1
+
         ticket = Ticket(
             ticket_id=ticket_id,
+            ticket_number=str(next_num).zfill(4),  # e.g., 0001, 0002
             name=t.name,
             id_card_number=t.id_card_number,
             date_of_birth=t.date_of_birth,
@@ -28,10 +39,11 @@ def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
         session.commit()
         session.refresh(ticket)
 
-        qr_payload = ticket.ticket_id
+        qr_payload = ticket.ticket_id  # QR encodes ticket_id for scanning
         qr = generate_qr(qr_payload)
 
         return TicketResponse(
+            ticket_number=ticket.ticket_number,
             name=ticket.name,
             id_card_number=ticket.id_card_number,
             date_of_birth=ticket.date_of_birth,
@@ -46,6 +58,10 @@ def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
         print(f"Error in /tickets: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ---------------------------
+# Validate Ticket
+# ---------------------------
 @router.post("/validate_ticket", response_model=TicketResponse)
 def validate_ticket(body: TicketValidationRequest, session: Session = Depends(get_session)):
     ticket_id = body.payload.strip()
@@ -57,6 +73,7 @@ def validate_ticket(body: TicketValidationRequest, session: Session = Depends(ge
 
     if result.used:
         return TicketResponse(
+            ticket_number=result.ticket_number,
             name=result.name,
             id_card_number=result.id_card_number,
             date_of_birth=result.date_of_birth,
@@ -74,6 +91,7 @@ def validate_ticket(body: TicketValidationRequest, session: Session = Depends(ge
     session.commit()
 
     return TicketResponse(
+        ticket_number=result.ticket_number,
         name=result.name,
         id_card_number=result.id_card_number,
         date_of_birth=result.date_of_birth,
@@ -86,15 +104,23 @@ def validate_ticket(body: TicketValidationRequest, session: Session = Depends(ge
     )
 
 
+# ---------------------------
+# Health Check
+# ---------------------------
 @router.get("/health")
 def health():
     return {"status": "ok"}
 
+
+# ---------------------------
+# Get All Tickets
+# ---------------------------
 @router.get("/tickets/all", response_model=list[TicketResponse])
 def get_all_tickets(session: Session = Depends(get_session)):
     tickets = session.exec(select(Ticket)).all()
     return [
         TicketResponse(
+            ticket_number=t.ticket_number,
             name=t.name,
             id_card_number=t.id_card_number,
             date_of_birth=t.date_of_birth,
@@ -107,10 +133,11 @@ def get_all_tickets(session: Session = Depends(get_session)):
         )
         for t in tickets
     ]
-# --- Admin Management Endpoints ---
 
-from fastapi import Body
 
+# ---------------------------
+# Admin Management Endpoints
+# ---------------------------
 @router.put("/tickets/{ticket_id}", response_model=TicketResponse)
 def update_ticket(ticket_id: str, updates: dict = Body(...), session: Session = Depends(get_session)):
     """
@@ -130,6 +157,7 @@ def update_ticket(ticket_id: str, updates: dict = Body(...), session: Session = 
     session.refresh(ticket)
 
     return TicketResponse(
+        ticket_number=ticket.ticket_number,
         name=ticket.name,
         id_card_number=ticket.id_card_number,
         date_of_birth=ticket.date_of_birth,
