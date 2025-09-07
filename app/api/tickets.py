@@ -192,3 +192,8 @@ def delete_all_tickets(confirm: bool = False, session: Session = Depends(get_ses
     session.exec(delete(Ticket))
     session.commit()
     return {"detail": "All tickets deleted successfully"}
+
+@router.get("/export")
+def export_tickets(session: Session = Depends(get_session)):
+    tickets = session.exec(select(Ticket)).all()
+    return [ticket.dict() for ticket in tickets]
