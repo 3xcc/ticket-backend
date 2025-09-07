@@ -1,49 +1,38 @@
 from typing import Optional
 from uuid import uuid4
 from sqlmodel import SQLModel, Field
-try:
-    # Pydantic v2
-    from pydantic import ConfigDict
-    V2 = True
-except Exception:
-    V2 = False
-
+from pydantic import ConfigDict
 
 class TicketBase(SQLModel):
-    name: str
-    id_card_number: str
-    date_of_birth: str
-    phone_number: str
-    event: str
-
+    name: Optional[str] = Field(default=None, nullable=True)
+    id_card_number: Optional[str] = Field(default=None, nullable=True)
+    date_of_birth: Optional[str] = Field(default=None, nullable=True)
+    phone_number: Optional[str] = Field(default=None, nullable=True)
+    event: Optional[str] = Field(default=None, nullable=True)
 
 class TicketCreate(TicketBase):
-    # All fields required on creation
+    # All fields optional on creation (for flexibility)
     pass
-
 
 class Ticket(TicketBase, table=True):
     ticket_id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True, index=True)
-    ticket_number: Optional[str] = Field(default=None, index=True, unique=True)  # Human-friendly number
+    ticket_number: Optional[str] = Field(default=None, index=True, unique=True)
     used: bool = Field(default=False)
-    scanned_at: Optional[str] = None
-
+    scanned_at: Optional[str] = Field(default=None, nullable=True)
 
 class TicketResponse(SQLModel):
     ticket_number: Optional[str] = None
-    name: str
-    id_card_number: str
-    date_of_birth: str
-    phone_number: str
+    name: Optional[str] = None
+    id_card_number: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    phone_number: Optional[str] = None
     ticket_id: str
     qr: str
     status: str
     event: Optional[str] = None
     timestamp: Optional[str] = None
 
-    class Config:
-        orm_mode = True
-
+    model_config = ConfigDict(from_attributes=True)
 
 class TicketValidationRequest(SQLModel):
     payload: str

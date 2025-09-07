@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
 
 # Load .env in local dev; on Render this will simply pick up the existing env vars
 load_dotenv()
@@ -10,11 +11,18 @@ from sqlmodel import SQLModel
 from app.db.engine import engine
 from app.api.tickets import router as tickets_router
 
-# Instantiate the FastAPI app
+# Lifespan handler — replaces deprecated @app.on_event("startup")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    SQLModel.metadata.create_all(engine)
+    yield  # No shutdown logic needed yet
+
+# Instantiate the FastAPI app with lifespan
 app = FastAPI(
     title="Ticket Manager API",
     description="Handles ticket creation, QR generation, and scanning workflows",
-    version="0.2.0"
+    version="0.2.0",
+    lifespan=lifespan
 )
 
 # CORS setup — tighten allow_origins once your frontend URL is known
@@ -33,8 +41,3 @@ app.include_router(tickets_router, tags=["Tickets"])
 @app.get("/")
 def root():
     return {"message": "Ticket Manager API is running"}
-
-# On startup, create any missing tables in the bound database
-@app.on_event("startup")
-def on_startup():
-    SQLModel.metadata.create_all(engine)
