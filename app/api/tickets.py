@@ -7,8 +7,11 @@ from app.db.session import get_session
 from app.dependencies.auth import require_permission
 from datetime import datetime, timezone
 import uuid
+import logging
+import traceback
 
 router = APIRouter()
+log = logging.getLogger("uvicorn.error")
 
 # ---------------------------
 # Create Ticket (Public)
@@ -16,11 +19,30 @@ router = APIRouter()
 @router.post("/tickets", response_model=TicketResponse)
 def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
     try:
+        # Optional: prevent duplicates per event (adjust if global uniqueness is desired)
+        existing = session.exec(
+            select(Ticket).where(
+                (Ticket.id_card_number == t.id_card_number) &
+                (Ticket.event == t.event)
+            )
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Ticket already exists for this ID and event")
+
         ticket_id = str(uuid.uuid4())
-        max_num = session.exec(select(func.max(Ticket.ticket_number))).one_or_none()
+
+        # Safely compute next ticket_number (stored as zero-padded string)
+        # func.max returns a row; we need the first element
+        row = session.exec(select(func.max(Ticket.ticket_number))).one_or_none()
+        max_num_str = None
+        if row is not None:
+            # row may be a tuple like (value,)
+            max_num_str = row[0] if isinstance(row, (tuple, list)) else row
+
         try:
-            next_num = int(max_num or 0) + 1
-        except ValueError:
+            next_num = (int(max_num_str) + 1) if max_num_str else 1
+        except (ValueError, TypeError):
+            # If somehow the max in DB is non-numeric, reset to 1
             next_num = 1
 
         ticket = Ticket(
@@ -39,7 +61,13 @@ def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
         session.commit()
         session.refresh(ticket)
 
-        qr = generate_qr(ticket.ticket_id)
+        # Generate QR last; if QR generation fails, don't lose the created record
+        try:
+            qr = generate_qr(ticket.ticket_id)
+        except Exception as e:
+            log.exception("QR generation failed for ticket_id=%s: %s", ticket.ticket_id, e)
+            # Still return the ticket; client can regenerate QR if needed
+            qr = ""
 
         return TicketResponse(
             ticket_number=ticket.ticket_number,
@@ -53,9 +81,17 @@ def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
             event=ticket.event,
             timestamp=""
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error in /tickets: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Roll back any partial transaction state
+        try:
+            session.rollback()
+        except Exception:
+            pass
+        log.error("Error in /tickets: %s", e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 # ---------------------------
 # Validate Ticket (Scanner)
@@ -66,13 +102,41 @@ def validate_ticket(
     session: Session = Depends(get_session),
     scanner: AdminUser = Depends(require_permission("scan_ticket"))
 ):
-    ticket_id = body.payload.strip()
-    result = session.exec(select(Ticket).where(Ticket.ticket_id == ticket_id)).first()
+    try:
+        ticket_id = (body.payload or "").strip()
+        if not ticket_id:
+            raise HTTPException(status_code=400, detail="Invalid payload")
 
-    if not result:
-        raise HTTPException(status_code=404, detail="Ticket not found")
+        result = session.exec(select(Ticket).where(Ticket.ticket_id == ticket_id)).first()
 
-    if result.used:
+        if not result:
+            raise HTTPException(status_code=404, detail="Ticket not found")
+
+        if result.used:
+            return TicketResponse(
+                ticket_number=result.ticket_number,
+                name=result.name,
+                id_card_number=result.id_card_number,
+                date_of_birth=result.date_of_birth,
+                phone_number=result.phone_number,
+                ticket_id=result.ticket_id,
+                qr="",
+                status="already_checked_in",
+                event=result.event,
+                timestamp=result.scanned_at
+            )
+
+        result.used = True
+        result.scanned_at = datetime.now(timezone.utc).isoformat()
+
+        # Only set scanned_by if the column exists in your model
+        if hasattr(result, "scanned_by"):
+            result.scanned_by = scanner.id  # Log who scanned it
+
+        session.add(result)
+        session.commit()
+        session.refresh(result)
+
         return TicketResponse(
             ticket_number=result.ticket_number,
             name=result.name,
@@ -81,30 +145,20 @@ def validate_ticket(
             phone_number=result.phone_number,
             ticket_id=result.ticket_id,
             qr="",
-            status="already_checked_in",
+            status="valid",
             event=result.event,
             timestamp=result.scanned_at
         )
-
-    result.used = True
-    result.scanned_at = datetime.now(timezone.utc).isoformat()
-    result.scanned_by = scanner.id  # Log who scanned it
-
-    session.add(result)
-    session.commit()
-
-    return TicketResponse(
-        ticket_number=result.ticket_number,
-        name=result.name,
-        id_card_number=result.id_card_number,
-        date_of_birth=result.date_of_birth,
-        phone_number=result.phone_number,
-        ticket_id=result.ticket_id,
-        qr="",
-        status="valid",
-        event=result.event,
-        timestamp=result.scanned_at
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        try:
+            session.rollback()
+        except Exception:
+            pass
+        log.error("Error in /validate_ticket: %s", e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 # ---------------------------
 # Health Check
