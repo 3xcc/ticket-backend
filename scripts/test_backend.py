@@ -14,7 +14,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "strongpassword")
 async def login(email, password):
     async with httpx.AsyncClient() as client:
         res = await client.post(f"{BASE_URL}/admin/login", data={
-            "email": email,
+            "username": email,
             "password": password
         })
         res.raise_for_status()

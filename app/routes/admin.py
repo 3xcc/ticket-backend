@@ -24,7 +24,7 @@ def login(
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    token = create_access_token(user.id, user.role, user.token_version)
+    token = create_access_token(user.id, user.role.value, user.token_version)
     return {"access_token": token, "token_type": "bearer"}
 
 # ---------------------------
