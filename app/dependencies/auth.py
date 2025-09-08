@@ -17,12 +17,25 @@ def get_current_admin_user(
 
     try:
         payload = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
-        user_id = int(payload.get("sub"))
-        token_ver = int(payload.get("ver"))
+        sub = payload.get("sub")
+        if sub is None:
+            raise credentials_exception
+        user_id = int(sub)
+
+        # Accept either "ver" or "token_version" to avoid breaking older tokens
+        ver_claim = payload.get("ver", payload.get("token_version"))
+        if ver_claim is None:
+            raise credentials_exception
+        token_ver = int(ver_claim)
     except (JWTError, ValueError, TypeError):
         raise credentials_exception
 
-    user = session.exec(select(AdminUser).where(AdminUser.id == user_id)).first()
+    # Prefer primary-key lookup if available
+    user = session.get(AdminUser, user_id)
+    if not user:
+        # Fallback in case session.get behaves differently in your setup
+        user = session.exec(select(AdminUser).where(AdminUser.id == user_id)).first()
+
     if not user or user.token_version != token_ver:
         raise credentials_exception
 
@@ -30,9 +43,12 @@ def get_current_admin_user(
 
 def require_permission(action: str):
     """
-    Factory function that returns a dependency checking if the current user has a given permission.
+    Dependency factory that checks if the current user has a given permission.
+    Admins bypass all permission checks.
     """
     def checker(user: AdminUser = Depends(get_current_admin_user)):
+        if getattr(user, "role", None) == "admin":
+            return user
         if not has_permission(user.role, action):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return user
