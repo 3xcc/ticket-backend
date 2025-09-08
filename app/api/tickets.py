@@ -118,7 +118,7 @@ def validate_ticket(
                 date_of_birth=result.date_of_birth,
                 phone_number=result.phone_number,
                 ticket_id=result.ticket_id,
-                qr="",
+                qr=generate_qr(result.ticket_id),
                 status="already_checked_in",
                 event=result.event,
                 timestamp=result.scanned_at
@@ -182,7 +182,7 @@ def get_all_tickets(
             date_of_birth=t.date_of_birth,
             phone_number=t.phone_number,
             ticket_id=t.ticket_id,
-            qr="",
+            qr=generate_qr(t.ticket_id),
             status="already_checked_in" if t.used else "valid",
             event=t.event,
             timestamp=t.scanned_at
