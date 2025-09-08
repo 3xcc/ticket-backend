@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlmodel import Session, select
 from app.models.admin_user import AdminUser
-from app.dependencies.db import get_session
+from app.db.session import get_session
 from app.utils.roles import has_permission
 import os
 
