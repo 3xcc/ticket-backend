@@ -31,8 +31,6 @@ def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
 
         ticket_id = str(uuid.uuid4())
 
-        # Safely compute next ticket_number (stored as zero-padded string)
-        # func.max returns a row; we need the first element
         row = session.exec(select(func.max(Ticket.ticket_number))).one_or_none()
         max_num_str = None
         if row is not None:
