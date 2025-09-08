@@ -5,4 +5,8 @@ Pillow
 sqlmodel
 psycopg2-binary
 python-dotenv
-alembic
+alembicpasslib[bcrypt]
+python-jose
+httpx==0.27.0
+hyperframe<6.0.0
+h2<5.0.0

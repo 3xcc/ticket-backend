@@ -9,7 +9,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import SQLModel
 from app.db.engine import engine
+
+# Routers
 from app.api.tickets import router as tickets_router
+from app.routes.admin import router as admin_router  # NEW
 
 # Lifespan handler — replaces deprecated @app.on_event("startup")
 @asynccontextmanager
@@ -20,8 +23,8 @@ async def lifespan(app: FastAPI):
 # Instantiate the FastAPI app with lifespan
 app = FastAPI(
     title="Ticket Manager API",
-    description="Handles ticket creation, QR generation, and scanning workflows",
-    version="0.2.0",
+    description="Handles ticket creation, QR generation, scanning, and admin workflows",
+    version="0.3.0",  # Bumped version for admin system
     lifespan=lifespan
 )
 
@@ -34,8 +37,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount the tickets router under /ticket
+# Mount routers
 app.include_router(tickets_router, tags=["Tickets"])
+app.include_router(admin_router, tags=["Admin"])  # NEW
 
 # Simple health check
 @app.get("/")
