@@ -11,7 +11,7 @@ BASE_URL = os.getenv("API_URL", "https://ticket-backend-jdpp.onrender.com").rstr
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@example.com")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "strongpassword")
 
-
+token_cache = None
 
 async def login(email: str, password: str) -> str:
     global token_cache
