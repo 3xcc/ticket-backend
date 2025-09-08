@@ -127,9 +127,8 @@ def validate_ticket(
         result.used = True
         result.scanned_at = datetime.now(timezone.utc).isoformat()
 
-        # Only set scanned_by if the column exists in your model
         if hasattr(result, "scanned_by"):
-            result.scanned_by = scanner.id  # Log who scanned it
+            result.scanned_by = scanner.id
 
         session.add(result)
         session.commit()
@@ -142,7 +141,7 @@ def validate_ticket(
             date_of_birth=result.date_of_birth,
             phone_number=result.phone_number,
             ticket_id=result.ticket_id,
-            qr="",
+            qr=generate_qr(result.ticket_id),  # ✅ FIXED HERE
             status="valid",
             event=result.event,
             timestamp=result.scanned_at
