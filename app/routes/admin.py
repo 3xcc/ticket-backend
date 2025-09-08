@@ -3,6 +3,9 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 from typing import Any, Dict, List
 import logging
+import io
+import base64
+import qrcode
 
 from app.db.session import get_session
 from app.models.admin_user import AdminUser
@@ -13,6 +16,17 @@ from app.dependencies.auth import require_permission
 
 router = APIRouter(prefix="/admin")
 log = logging.getLogger("uvicorn.error")
+
+
+def generate_qr_base64(data: str) -> str:
+    """
+    Generate a QR code PNG for the given data and return it as a base64 string.
+    """
+    qr_img = qrcode.make(data)
+    buf = io.BytesIO()
+    qr_img.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
+
 
 @router.post("/login")
 def login(
@@ -69,6 +83,7 @@ def edit_ticket(
     session.refresh(ticket)
     return TicketResponse.model_validate(ticket)
 
+
 @router.delete("/tickets/{ticket_id}")
 def delete_ticket(
     ticket_id: str,
@@ -81,6 +96,7 @@ def delete_ticket(
     session.delete(ticket)
     session.commit()
     return {"message": f"Ticket {ticket_id} deleted successfully"}
+
 
 @router.delete("/tickets")
 def bulk_delete(
@@ -96,10 +112,27 @@ def bulk_delete(
     session.commit()
     return {"message": "All tickets deleted successfully"}
 
+
 @router.get("/export", response_model=List[TicketResponse])
 def export_tickets(
     session: Session = Depends(get_session),
     _viewer: AdminUser = Depends(require_permission("export")),
 ):
     tickets = session.exec(select(Ticket)).all()
-    return [TicketResponse.model_validate(t) for t in tickets]
+    results: List[TicketResponse] = []
+    for t in tickets:
+        results.append(
+            TicketResponse(
+                ticket_number=t.ticket_number,
+                name=t.name,
+                id_card_number=t.id_card_number,
+                date_of_birth=t.date_of_birth,
+                phone_number=t.phone_number,
+                ticket_id=t.ticket_id,
+                qr=generate_qr_base64(t.ticket_id),
+                status="already_checked_in" if t.used else "valid",
+                event=t.event,
+                timestamp=t.scanned_at
+            )
+        )
+    return results
