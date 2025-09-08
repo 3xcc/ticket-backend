@@ -16,7 +16,7 @@ def get_current_admin_user(
     credentials_exception = HTTPException(status_code=401, detail="Invalid or expired token")
 
     try:
-        payload = jwt.decode(token, os.getenv("JWT_SECRET_KEY"), algorithms=["HS256"])
+        payload = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
         user_id = int(payload.get("sub"))
         token_ver = int(payload.get("ver"))
     except (JWTError, ValueError, TypeError):
