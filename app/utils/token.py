@@ -1,18 +1,20 @@
-from datetime import datetime, timedelta
-from jose import jwt
 import os
+from datetime import datetime, timedelta, timezone
+from jose import jwt
 
-# Load from environment — set this in Render's Environment tab
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-me-in-prod")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 1 hour default
+# Configure via environment variables in production (Render dashboard)
+SECRET_KEY = os.getenv("JWT_SECRET", "change-this-in-production")
+ALGORITHM = os.getenv("JWT_ALG", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MIN", "60"))
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
-    """
-    Create a signed JWT token with expiry.
-    Includes any extra fields passed in `data` (e.g., sub, ver).
-    """
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+def create_access_token(user_id: int, role: str, token_version: int) -> str:
+    # role is expected to be a plain string
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    payload = {
+        "sub": str(user_id),
+        "role": str(role),
+        "token_version": int(token_version or 0),
+        "type": "access",
+        "exp": expire,
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)

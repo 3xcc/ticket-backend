@@ -1,43 +1,35 @@
-import sys, os
-from datetime import datetime
-from sqlmodel import Session, SQLModel
-from dotenv import load_dotenv
+# Run from repo root: python -m scripts.create_admin_user
+import os
+import sys
+from sqlmodel import Session, select
 
-# Load environment variables from .env
-load_dotenv()
+# Ensure repo root on path if run directly
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Add repo root to sys.path so imports work
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-# Import models and engine
 from app.db.engine import engine
-from app.models.admin_user import AdminUser, AdminRole
-from app.utils.security import hash_password
+from app.models.admin_user import AdminUser
+from app.utils.security import get_password_hash
 
-# Create tables if they don't exist
-SQLModel.metadata.create_all(engine)
+EMAIL = os.getenv("SEED_ADMIN_EMAIL", "admin@example.com")
+PASSWORD = os.getenv("SEED_ADMIN_PASSWORD", "strongpassword")
+ROLE = os.getenv("SEED_ADMIN_ROLE", "admin")  # If model uses Enum, adjust accordingly
 
-def create_admin(email: str, password: str, role: AdminRole = AdminRole.ADMIN):
-    hashed_pw = hash_password(password)
-    user = AdminUser(
-        email=email,
-        hashed_password=hashed_pw,
-        role=role,
-        token_version=1,
-        created_at=datetime.utcnow(),
-        last_login=None
-    )
+def main():
     with Session(engine) as session:
+        existing = session.exec(select(AdminUser).where(AdminUser.email == EMAIL)).first()
+        if existing:
+            print("Admin already exists:", existing.id, existing.email)
+            return
+        user = AdminUser(
+            email=EMAIL,
+            hashed_password=get_password_hash(PASSWORD),
+            role=ROLE,
+            token_version=0,
+        )
         session.add(user)
         session.commit()
-        print(f"✅ Created admin user: {email} with role: {role}")
+        session.refresh(user)
+        print("Created admin:", user.id, user.email)
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python create_admin_user.py <email> <password> [role]")
-        sys.exit(1)
-
-    email = sys.argv[1]
-    password = sys.argv[2]
-    role = AdminRole(sys.argv[3]) if len(sys.argv) > 3 else AdminRole.ADMIN
-    create_admin(email, password, role)
+    main()
