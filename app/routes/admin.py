@@ -5,7 +5,8 @@ from app.db.session import get_session
 from app.models.ticket import Ticket
 from app.models.admin_user import AdminUser, AdminRole
 from app.models.ticket import TicketResponse
-from app.utils.security import verify_password, create_access_token
+from app.utils.security import verify_password
+from app.utils.token import create_access_token
 from app.dependencies.auth import require_permission
 from datetime import datetime
 
