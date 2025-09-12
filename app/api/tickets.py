@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlmodel import Session, select, func
 from app.models.ticket import Ticket, TicketCreate, TicketResponse, TicketValidationRequest
-from app.models.admin_user import AdminUser
+from app.models.user import User
 from app.services.qr import generate_qr
 from app.db.session import get_session
 from app.dependencies.auth import require_permission
@@ -19,7 +19,6 @@ log = logging.getLogger("uvicorn.error")
 @router.post("/tickets", response_model=TicketResponse)
 def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
     try:
-        # Optional: prevent duplicates per event (adjust if global uniqueness is desired)
         existing = session.exec(
             select(Ticket).where(
                 (Ticket.id_card_number == t.id_card_number) &
@@ -32,15 +31,11 @@ def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
         ticket_id = str(uuid.uuid4())
 
         row = session.exec(select(func.max(Ticket.ticket_number))).one_or_none()
-        max_num_str = None
-        if row is not None:
-            # row may be a tuple like (value,)
-            max_num_str = row[0] if isinstance(row, (tuple, list)) else row
+        max_num_str = row[0] if isinstance(row, (tuple, list)) else row
 
         try:
             next_num = (int(max_num_str) + 1) if max_num_str else 1
         except (ValueError, TypeError):
-            # If somehow the max in DB is non-numeric, reset to 1
             next_num = 1
 
         ticket = Ticket(
@@ -59,12 +54,10 @@ def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
         session.commit()
         session.refresh(ticket)
 
-        # Generate QR last; if QR generation fails, don't lose the created record
         try:
             qr = generate_qr(ticket.ticket_id)
         except Exception as e:
             log.exception("QR generation failed for ticket_id=%s: %s", ticket.ticket_id, e)
-            # Still return the ticket; client can regenerate QR if needed
             qr = ""
 
         return TicketResponse(
@@ -82,7 +75,6 @@ def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
     except HTTPException:
         raise
     except Exception as e:
-        # Roll back any partial transaction state
         try:
             session.rollback()
         except Exception:
@@ -98,7 +90,7 @@ def create_ticket(t: TicketCreate, session: Session = Depends(get_session)):
 def validate_ticket(
     body: TicketValidationRequest,
     session: Session = Depends(get_session),
-    scanner: AdminUser = Depends(require_permission("scan_ticket"))
+    scanner: User = Depends(require_permission("scan_ticket"))
 ):
     try:
         ticket_id = (body.payload or "").strip()
@@ -106,7 +98,6 @@ def validate_ticket(
             raise HTTPException(status_code=400, detail="Invalid payload")
 
         result = session.exec(select(Ticket).where(Ticket.ticket_id == ticket_id)).first()
-
         if not result:
             raise HTTPException(status_code=404, detail="Ticket not found")
 
@@ -141,7 +132,7 @@ def validate_ticket(
             date_of_birth=result.date_of_birth,
             phone_number=result.phone_number,
             ticket_id=result.ticket_id,
-            qr=generate_qr(result.ticket_id),  # ✅ FIXED HERE
+            qr=generate_qr(result.ticket_id),
             status="valid",
             event=result.event,
             timestamp=result.scanned_at
@@ -170,7 +161,7 @@ def health():
 @router.get("/tickets/all", response_model=list[TicketResponse])
 def get_all_tickets(
     session: Session = Depends(get_session),
-    viewer: AdminUser = Depends(require_permission("scan_ticket"))  # Optional protection
+    viewer: User = Depends(require_permission("scan_ticket"))
 ):
     tickets = session.exec(select(Ticket)).all()
     return [

@@ -13,6 +13,7 @@ from app.db.engine import engine
 # Routers
 from app.api.tickets import router as tickets_router
 from app.routes.admin import router as admin_router  # NEW
+from app.routes.auth import router as auth_router
 
 # Lifespan handler — replaces deprecated @app.on_event("startup")
 @asynccontextmanager
@@ -39,7 +40,8 @@ app.add_middleware(
 
 # Mount routers
 app.include_router(tickets_router, tags=["Tickets"])
-app.include_router(admin_router, tags=["Admin"])  # NEW
+app.include_router(admin_router, tags=["Admin"]) 
+app.include_router(auth_router, prefix="/auth") # NEW
 
 # Simple health check
 @app.get("/")

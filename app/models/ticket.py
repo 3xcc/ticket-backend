@@ -28,7 +28,7 @@ class Ticket(TicketBase, table=True):
     ticket_number: Optional[str] = Field(default=None, index=True, unique=True)
     used: bool = Field(default=False)
     scanned_at: Optional[str] = Field(default=None, nullable=True)
-    scanned_by: Optional[int] = Field(default=None, foreign_key="adminuser.id", nullable=True)  # NEW
+    scanned_by: Optional[str] = Field(default=None, foreign_key="user.id", nullable=True)  # NEW
 
 # ---------------------------
 # Ticket Response Payload

@@ -8,10 +8,9 @@ import base64
 import qrcode
 
 from app.db.session import get_session
-from app.models.admin_user import AdminUser
+from app.models.user import User
 from app.models.ticket import Ticket, TicketResponse
-from app.utils.security import verify_password
-from app.utils.token import create_access_token
+from app.utils.auth import verify_password, create_token
 from app.dependencies.auth import require_permission
 
 router = APIRouter(prefix="/admin")
@@ -19,9 +18,6 @@ log = logging.getLogger("uvicorn.error")
 
 
 def generate_qr_base64(data: str) -> str:
-    """
-    Generate a QR code PNG for the given data and return it as a base64 string.
-    """
     qr_img = qrcode.make(data)
     buf = io.BytesIO()
     qr_img.save(buf, format="PNG")
@@ -34,33 +30,17 @@ def login(
     session: Session = Depends(get_session),
 ):
     user = session.exec(
-        select(AdminUser).where(AdminUser.email == form_data.username)
+        select(User).where(User.email == form_data.username)
     ).first()
 
-    print("DEBUG: user =", user)
-
-    if not user:
+    if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    try:
-        password_ok = verify_password(form_data.password, user.hashed_password)
-        print("DEBUG: password_ok =", password_ok)
-    except Exception as e:
-        print("DEBUG: password verification error:", e)
-        raise HTTPException(status_code=500, detail="Password verification failed")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="User is inactive")
 
-    if not password_ok:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    role = getattr(user.role, "value", user.role)
-    print("DEBUG: role =", role)
-
-    try:
-        token = create_access_token(user.id, role, user.token_version)
-        return {"access_token": token, "token_type": "bearer"}
-    except Exception as e:
-        print("DEBUG: token creation error:", e)
-        raise HTTPException(status_code=500, detail="Token creation failed")
+    token = create_token(user)
+    return {"access_token": token, "token_type": "bearer"}
 
 
 @router.put("/tickets/{ticket_id}", response_model=TicketResponse)
@@ -68,7 +48,7 @@ def edit_ticket(
     ticket_id: str,
     updates: Dict[str, Any],
     session: Session = Depends(get_session),
-    _editor: AdminUser = Depends(require_permission("edit_ticket")),
+    _editor: User = Depends(require_permission("edit_ticket")),
 ):
     ticket = session.exec(select(Ticket).where(Ticket.ticket_id == ticket_id)).first()
     if not ticket:
@@ -88,7 +68,7 @@ def edit_ticket(
 def delete_ticket(
     ticket_id: str,
     session: Session = Depends(get_session),
-    _admin: AdminUser = Depends(require_permission("delete_ticket")),
+    _admin: User = Depends(require_permission("delete_ticket")),
 ):
     ticket = session.exec(select(Ticket).where(Ticket.ticket_id == ticket_id)).first()
     if not ticket:
@@ -102,7 +82,7 @@ def delete_ticket(
 def bulk_delete(
     confirm: bool = False,
     session: Session = Depends(get_session),
-    _admin: AdminUser = Depends(require_permission("delete_ticket")),
+    _admin: User = Depends(require_permission("delete_ticket")),
 ):
     if not confirm:
         raise HTTPException(status_code=400, detail="Confirmation required")
@@ -116,7 +96,7 @@ def bulk_delete(
 @router.get("/export", response_model=List[TicketResponse])
 def export_tickets(
     session: Session = Depends(get_session),
-    _viewer: AdminUser = Depends(require_permission("export")),
+    _viewer: User = Depends(require_permission("export")),
 ):
     tickets = session.exec(select(Ticket)).all()
     results: List[TicketResponse] = []
