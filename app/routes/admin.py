@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from typing import List, Optional
+from pydantic import BaseModel
 import logging
 import io
 import base64
@@ -16,6 +16,11 @@ router = APIRouter(prefix="/admin")
 log = logging.getLogger("uvicorn.error")
 
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
 def generate_qr_base64(data: str) -> str:
     qr_img = qrcode.make(data)
     buf = io.BytesIO()
@@ -25,13 +30,12 @@ def generate_qr_base64(data: str) -> str:
 
 @router.post("/login")
 def login(
-    email: str,
-    password: str,
+    data: LoginRequest,
     session: Session = Depends(get_session),
 ):
-    user = session.exec(select(User).where(User.email == email)).first()
+    user = session.exec(select(User).where(User.email == data.email)).first()
 
-    if not user or not verify_password(password, user.hashed_password):
+    if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     if not user.is_active:
