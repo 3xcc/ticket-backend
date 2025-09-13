@@ -7,18 +7,18 @@ import logging
 import io
 import base64
 import qrcode
+from uuid import uuid4
 
 from app.db.session import get_session
 from app.models.user import User
 from app.models.ticket import Ticket, TicketResponse
 from app.utils.auth import verify_password, create_token, hash_password
-from uuid import uuid4
 from app.dependencies.auth import require_permission
 
 router = APIRouter(prefix="/admin")
 log = logging.getLogger("uvicorn.error")
 
-
+# 🧾 Request Models
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -28,13 +28,31 @@ class CreateUserRequest(BaseModel):
     password: str
     role: str
 
-
+# 🎟️ QR Generator
 def generate_qr_base64(data: str) -> str:
     qr_img = qrcode.make(data)
     buf = io.BytesIO()
     qr_img.save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
+# 🔐 Admin Login
+@router.post("/login")
+def login(
+    data: LoginRequest,
+    session: Session = Depends(get_session),
+):
+    user = session.exec(select(User).where(User.email == data.email)).first()
+
+    if not user or not verify_password(data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="User is inactive")
+
+    token = create_token(user)
+    return {"access_token": token, "token_type": "bearer"}
+
+# 👤 Create User (scanner/admin)
 @router.post("/create_user")
 def create_user(
     data: CreateUserRequest,
@@ -58,22 +76,7 @@ def create_user(
     session.commit()
     return {"message": f"User {data.email} created"}
 
-@router.post("/login")
-def login(
-    data: LoginRequest,
-    session: Session = Depends(get_session),
-):
-    user = session.exec(select(User).where(User.email == data.email)).first()
-
-    if not user or not verify_password(data.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    if not user.is_active:
-        raise HTTPException(status_code=403, detail="User is inactive")
-
-    token = create_token(user)
-    return {"access_token": token, "token_type": "bearer"}
-
+# ✏️ Edit Ticket
 @router.put("/tickets/{ticket_id}", response_model=TicketResponse)
 def edit_ticket(
     ticket_id: str,
@@ -94,7 +97,7 @@ def edit_ticket(
     session.refresh(ticket)
     return TicketResponse.model_validate(ticket)
 
-
+# 🗑️ Delete Single Ticket
 @router.delete("/tickets/{ticket_id}")
 def delete_ticket(
     ticket_id: str,
@@ -108,7 +111,7 @@ def delete_ticket(
     session.commit()
     return {"message": f"Ticket {ticket_id} deleted successfully"}
 
-
+# 🧹 Bulk Delete Tickets
 @router.delete("/tickets")
 def bulk_delete(
     confirm: bool = False,
@@ -123,7 +126,7 @@ def bulk_delete(
     session.commit()
     return {"message": "All tickets deleted successfully"}
 
-
+# 📤 Export Tickets
 @router.get("/export", response_model=List[TicketResponse])
 def export_tickets(
     used: Optional[bool] = Query(None),
