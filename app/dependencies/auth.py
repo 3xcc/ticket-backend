@@ -42,6 +42,13 @@ def get_current_user(
     return user
 
 def require_permission(action: str):
-    """
-    Dependency factory that checks if the current user
-    """
+    def permission_dependency(
+        user: User = Depends(get_current_user)
+    ) -> User:
+        if not has_permission(user.role, action):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"User role '{user.role}' does not have permission to '{action}'"
+            )
+        return user
+    return permission_dependency
