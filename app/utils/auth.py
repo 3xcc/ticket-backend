@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 from jose import jwt
 from passlib.context import CryptContext
 from app.models.user import User
+import os
+
 
 SECRET_KEY = os.getenv("JWT_SECRET")  # Replace with os.getenv("JWT_SECRET") in production
 ALGORITHM = "HS256"
