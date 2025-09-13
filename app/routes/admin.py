@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlmodel import Session, select
 from pydantic import BaseModel
 from typing import List, Optional
@@ -55,7 +55,7 @@ def login(
 # 👤 Create User (scanner/admin)
 @router.post("/create_user")
 def create_user(
-    data: CreateUserRequest,
+    data: CreateUserRequest = Body(...),
     session: Session = Depends(get_session),
     _admin: User = Depends(require_permission("create_user")),
 ):
