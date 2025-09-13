@@ -23,6 +23,11 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class CreateUserRequest(BaseModel):
+    email: str
+    password: str
+    role: str
+
 
 def generate_qr_base64(data: str) -> str:
     qr_img = qrcode.make(data)
@@ -32,28 +37,26 @@ def generate_qr_base64(data: str) -> str:
 
 @router.post("/create_user")
 def create_user(
-    email: str,
-    password: str,
-    role: str,
+    data: CreateUserRequest,
     session: Session = Depends(get_session),
     _admin: User = Depends(require_permission("create_user")),
 ):
-    existing = session.exec(select(User).where(User.email == email)).first()
+    existing = session.exec(select(User).where(User.email == data.email)).first()
     if existing:
         raise HTTPException(status_code=409, detail="User already exists")
 
     new_user = User(
         id=str(uuid4()),
-        email=email,
-        hashed_password=hash_password(password),
-        role=role,
+        email=data.email,
+        hashed_password=hash_password(data.password),
+        role=data.role,
         token_version=1,
         created_at=datetime.utcnow(),
         is_active=True
     )
     session.add(new_user)
     session.commit()
-    return {"message": f"User {email} created"}
+    return {"message": f"User {data.email} created"}
 
 @router.post("/login")
 def login(
