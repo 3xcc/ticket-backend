@@ -44,3 +44,4 @@ def get_current_user(
 def require_permission(action: str):
     """
     Dependency factory that checks if the current user
+    """
