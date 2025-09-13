@@ -5,7 +5,7 @@ import os
 
 from app.models.user import User
 from app.utils.auth import verify_password, create_token
-from app.dependencies.db import get_session
+from app.db.session import get_session
 
 router = APIRouter()
 
