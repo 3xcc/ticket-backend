@@ -1,7 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
-from typing import Any, Dict, List
+from typing import List, Optional
 import logging
 import io
 import base64
@@ -26,14 +25,13 @@ def generate_qr_base64(data: str) -> str:
 
 @router.post("/login")
 def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
+    email: str,
+    password: str,
     session: Session = Depends(get_session),
 ):
-    user = session.exec(
-        select(User).where(User.email == form_data.username)
-    ).first()
+    user = session.exec(select(User).where(User.email == email)).first()
 
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     if not user.is_active:
@@ -46,7 +44,7 @@ def login(
 @router.put("/tickets/{ticket_id}", response_model=TicketResponse)
 def edit_ticket(
     ticket_id: str,
-    updates: Dict[str, Any],
+    updates: dict,
     session: Session = Depends(get_session),
     _editor: User = Depends(require_permission("edit_ticket")),
 ):
@@ -95,10 +93,28 @@ def bulk_delete(
 
 @router.get("/export", response_model=List[TicketResponse])
 def export_tickets(
+    used: Optional[bool] = Query(None),
+    event: Optional[str] = Query(None),
+    scanned_by: Optional[str] = Query(None),
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None),
     session: Session = Depends(get_session),
     _viewer: User = Depends(require_permission("export")),
 ):
-    tickets = session.exec(select(Ticket)).all()
+    query = select(Ticket)
+
+    if used is not None:
+        query = query.where(Ticket.used == used)
+    if event:
+        query = query.where(Ticket.event == event)
+    if scanned_by:
+        query = query.where(Ticket.scanned_by == scanned_by)
+    if start:
+        query = query.where(Ticket.scanned_at >= start)
+    if end:
+        query = query.where(Ticket.scanned_at <= end)
+
+    tickets = session.exec(query).all()
     results: List[TicketResponse] = []
     for t in tickets:
         results.append(
