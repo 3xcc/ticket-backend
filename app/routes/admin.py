@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 from pydantic import BaseModel
 from typing import List, Optional
+from datetime import datetime
 import logging
 import io
 import base64
@@ -10,7 +11,8 @@ import qrcode
 from app.db.session import get_session
 from app.models.user import User
 from app.models.ticket import Ticket, TicketResponse
-from app.utils.auth import verify_password, create_token
+from app.utils.auth import verify_password, create_token, hash_password
+from uuid import uuid4
 from app.dependencies.auth import require_permission
 
 router = APIRouter(prefix="/admin")
@@ -28,6 +30,30 @@ def generate_qr_base64(data: str) -> str:
     qr_img.save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
+@router.post("/create_user")
+def create_user(
+    email: str,
+    password: str,
+    role: str,
+    session: Session = Depends(get_session),
+    _admin: User = Depends(require_permission("create_user")),
+):
+    existing = session.exec(select(User).where(User.email == email)).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="User already exists")
+
+    new_user = User(
+        id=str(uuid4()),
+        email=email,
+        hashed_password=hash_password(password),
+        role=role,
+        token_version=1,
+        created_at=datetime.utcnow(),
+        is_active=True
+    )
+    session.add(new_user)
+    session.commit()
+    return {"message": f"User {email} created"}
 
 @router.post("/login")
 def login(
@@ -44,7 +70,6 @@ def login(
 
     token = create_token(user)
     return {"access_token": token, "token_type": "bearer"}
-
 
 @router.put("/tickets/{ticket_id}", response_model=TicketResponse)
 def edit_ticket(
