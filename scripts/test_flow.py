@@ -1,4 +1,5 @@
 import requests
+from uuid import uuid4
 
 BASE_URL = "https://ticket-backend-jdpp.onrender.com"
 
@@ -36,9 +37,8 @@ def create_scanner(token):
 
 def create_ticket(token):
     ticket_payload = {
-        "ticket_number": "T-001",
         "name": "Test User",
-        "id_card_number": "A1234567",
+        "id_card_number": str(uuid4())[:8],  # 👈 unique ID
         "date_of_birth": "1990-01-01",
         "phone_number": "+9601234567",
         "event": "Test Event"
