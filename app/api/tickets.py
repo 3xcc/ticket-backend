@@ -149,6 +149,67 @@ def validate_ticket(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 # ---------------------------
+# NEW: Scan Ticket by Path Param (Scanner)
+# ---------------------------
+@router.post("/scan/{ticket_id}", response_model=TicketResponse)
+def scan_ticket(
+    ticket_id: str,
+    session: Session = Depends(get_session),
+    scanner: User = Depends(require_permission("scan_ticket"))
+):
+    try:
+        result = session.exec(select(Ticket).where(Ticket.ticket_id == ticket_id)).first()
+        if not result:
+            raise HTTPException(status_code=404, detail="Ticket not found")
+
+        if result.used:
+            return TicketResponse(
+                ticket_number=result.ticket_number,
+                name=result.name,
+                id_card_number=result.id_card_number,
+                date_of_birth=result.date_of_birth,
+                phone_number=result.phone_number,
+                ticket_id=result.ticket_id,
+                qr=generate_qr(result.ticket_id),
+                status="already_checked_in",
+                event=result.event,
+                timestamp=result.scanned_at
+            )
+
+        result.used = True
+        result.scanned_at = datetime.now(timezone.utc).isoformat()
+
+        if hasattr(result, "scanned_by"):
+            result.scanned_by = scanner.id
+
+        session.add(result)
+        session.commit()
+        session.refresh(result)
+
+        return TicketResponse(
+            ticket_number=result.ticket_number,
+            name=result.name,
+            id_card_number=result.id_card_number,
+            date_of_birth=result.date_of_birth,
+            phone_number=result.phone_number,
+            ticket_id=result.ticket_id,
+            qr=generate_qr(result.ticket_id),
+            status="valid",
+            event=result.event,
+            timestamp=result.scanned_at
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        try:
+            session.rollback()
+        except Exception:
+            pass
+        log.error("Error in /scan/{ticket_id}: %s", e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# ---------------------------
 # Health Check
 # ---------------------------
 @router.get("/health")

@@ -168,3 +168,18 @@ def export_tickets(
             )
         )
     return results
+
+# 📤 Clean up users
+@router.delete("/delete_user")
+def delete_user(
+    email: str = Query(..., description="Email of the user to delete"),
+    session: Session = Depends(get_session),
+    _admin: User = Depends(require_permission("delete_user"))
+):
+    user = session.exec(select(User).where(User.email == email)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    session.delete(user)
+    session.commit()
+    return {"message": f"User {email} deleted"}
