@@ -2,12 +2,13 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlmodel import Session, select
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.db.session import get_session
-from app.utils.roles import has_permission
+from app.utils.roles import has_permission  # pure function, no FastAPI imports
 import os
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/admin/login")
+
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -41,10 +42,20 @@ def get_current_user(
 
     return user
 
+
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    """Dependency that ensures the current user is an admin."""
+    if getattr(user, "role", None) != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required"
+        )
+    return user
+
+
 def require_permission(action: str):
-    def permission_dependency(
-        user: User = Depends(get_current_user)
-    ) -> User:
+    """Factory that returns a dependency enforcing a specific permission."""
+    def permission_dependency(user: User = Depends(get_current_user)) -> User:
         if not has_permission(user.role, action):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

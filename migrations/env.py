@@ -2,15 +2,18 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 from sqlmodel import SQLModel
-from app.db.session import engine  # Your SQLModel engine
-from app.models import ticket      # Import models so Alembic can detect them
+from app.db.session import engine
+
+# Import all models so Alembic can detect them
+from app.models import ticket
 from app.models.user import User
+from app.models import template  # NEW — ensures TicketTemplate is picked up
+from app.models import file  # NEW
 
 # Alembic Config object
 config = context.config
 
-# If you want to load DB URL from your engine instead of alembic.ini:
-# This ensures we always use the same DB URL as the app
+# Always use the same DB URL as the app
 config.set_main_option("sqlalchemy.url", str(engine.url))
 
 # Interpret the config file for Python logging
