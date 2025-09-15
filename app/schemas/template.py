@@ -1,10 +1,15 @@
 from typing import Optional, List, Literal
 from datetime import datetime
-from pydantic import BaseModel, Field as PydField
+from pydantic import BaseModel
 
+# Allowed field types for the template designer
 FieldType = Literal["qr", "text", "image", "barcode"]
 
-class TemplateFieldIn(BaseModel):
+class TemplateField(BaseModel):
+    """
+    Represents a single field on a ticket template.
+    Coordinates and sizes are in pixels relative to the background image.
+    """
     name: str
     type: FieldType
     x: int
@@ -19,23 +24,28 @@ class TemplateFieldIn(BaseModel):
     data_key: Optional[str] = None
     conditions: Optional[dict] = None
 
-class TemplateCreate(BaseModel):
+
+class TemplateBase(BaseModel):
     name: str
-    background_url: str = ""
-    fields: List[TemplateFieldIn] = PydField(default_factory=list)
+    background_file_id: Optional[str] = None  # NEW: FK to StoredFile
+    fields: List[TemplateField]
+
+
+class TemplateCreate(TemplateBase):
+    pass
+
 
 class TemplateUpdate(BaseModel):
     name: Optional[str] = None
-    background_url: Optional[str] = None
-    fields: Optional[List[TemplateFieldIn]] = None
+    background_file_id: Optional[str] = None
+    fields: Optional[List[TemplateField]] = None
 
-class TemplateOut(BaseModel):
+
+class TemplateOut(TemplateBase):
     id: str
-    name: str
-    background_url: str
-    fields: List[TemplateFieldIn]
     created_at: datetime
     updated_at: datetime
+    download_url: Optional[str] = None  # NEW: convenience for frontend
 
     class Config:
-        from_attributes = True  # allows ORM objects to be returned directly
+        orm_mode = True

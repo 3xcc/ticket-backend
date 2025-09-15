@@ -16,7 +16,11 @@ def list_templates(
     _ = Depends(require_admin)
 ):
     """List all ticket templates (admin only)."""
-    return session.exec(select(TicketTemplate)).all()
+    templates = session.exec(select(TicketTemplate)).all()
+    return [
+        _add_download_url(tpl)
+        for tpl in templates
+    ]
 
 
 @router.post("/", response_model=TemplateOut, status_code=status.HTTP_201_CREATED)
@@ -28,13 +32,13 @@ def create_template(
     """Create a new ticket template (admin only)."""
     tpl = TicketTemplate(
         name=payload.name,
-        background_url=payload.background_url,
+        background_file_id=payload.background_file_id,
         fields=payload.fields
     )
     session.add(tpl)
     session.commit()
     session.refresh(tpl)
-    return tpl
+    return _add_download_url(tpl)
 
 
 @router.get("/{template_id}", response_model=TemplateOut)
@@ -47,7 +51,7 @@ def get_template(
     tpl = session.get(TicketTemplate, template_id)
     if not tpl:
         raise HTTPException(status_code=404, detail="Template not found")
-    return tpl
+    return _add_download_url(tpl)
 
 
 @router.put("/{template_id}", response_model=TemplateOut)
@@ -70,7 +74,7 @@ def update_template(
     session.add(tpl)
     session.commit()
     session.refresh(tpl)
-    return tpl
+    return _add_download_url(tpl)
 
 
 @router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -86,3 +90,21 @@ def delete_template(
     session.delete(tpl)
     session.commit()
     return None
+
+
+# --- Internal helper ---
+def _add_download_url(tpl: TicketTemplate) -> TemplateOut:
+    """Attach a download_url to the TemplateOut schema."""
+    download_url = (
+        f"/api/files/{tpl.background_file_id}"
+        if tpl.background_file_id else None
+    )
+    return TemplateOut(
+        id=tpl.id,
+        name=tpl.name,
+        background_file_id=tpl.background_file_id,
+        fields=tpl.fields,
+        created_at=tpl.created_at,
+        updated_at=tpl.updated_at,
+        download_url=download_url
+    )
