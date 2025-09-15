@@ -33,8 +33,9 @@ def create_template(
     tpl = TicketTemplate(
         name=payload.name,
         background_file_id=payload.background_file_id,
-        fields=payload.fields
+        fields=[field.model_dump() for field in payload.fields]  # <-- serialize to dicts
     )
+
     session.add(tpl)
     session.commit()
     session.refresh(tpl)
