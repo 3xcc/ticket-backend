@@ -20,6 +20,9 @@ from sqlmodel import SQLModel
 from app.db.engine import engine
 
 # Core routers (must exist)
+tickets_router = None
+admin_router = None
+auth_router = None
 try:
     from app.api.tickets import router as tickets_router
     from app.routes.admin import router as admin_router
@@ -27,12 +30,10 @@ try:
     logging.info("Core routers loaded successfully")
 except ImportError as e:
     logging.critical(f"Failed to import core routers: {e}")
-    raise
 except Exception as e:
     logging.critical(f"Unexpected error importing core routers: {e}")
-    raise
 
-# Optional Phase 4D+ routers
+# Optional routers loader
 def safe_import_router(path: str, name: str):
     try:
         module = __import__(path, fromlist=["router"])
@@ -52,7 +53,8 @@ def safe_import_router(path: str, name: str):
 templates_router = safe_import_router("app.routes.templates", "Templates")
 uploads_router = safe_import_router("app.routes.uploads", "Uploads")
 render_router = safe_import_router("app.routes.render", "Render")
-files_router = safe_import_router("app.routes.files", "Files")  # NEW for DB-stored uploads
+files_router = safe_import_router("app.routes.files", "Files")
+events_router = safe_import_router("app.routes.events", "Events")  # NEW
 
 # Lifespan handler — replaces deprecated @app.on_event("startup")
 @asynccontextmanager
@@ -65,12 +67,17 @@ async def lifespan(app: FastAPI):
     yield  # No shutdown logic needed yet
 
 # Instantiate the FastAPI app with lifespan
-app = FastAPI(
-    title="Ticket Manager API",
-    description="Handles ticket creation, QR generation, scanning, and admin workflows",
-    version="0.3.0",
-    lifespan=lifespan
-)
+try:
+    app = FastAPI(
+        title="Ticket Manager API",
+        description="Handles ticket creation, QR generation, scanning, and admin workflows",
+        version="0.3.0",
+        lifespan=lifespan
+    )
+    logging.info("FastAPI app instantiated")
+except Exception as e:
+    logging.critical(f"Error creating FastAPI app: {e}")
+    raise
 
 # CORS setup
 try:
@@ -87,10 +94,12 @@ except Exception as e:
 
 # Mount routers with consistent /api prefix
 try:
-    app.include_router(tickets_router, prefix="/api", tags=["Tickets"])
-    app.include_router(admin_router, prefix="/api", tags=["Admin"])
-    app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
-
+    if tickets_router:
+        app.include_router(tickets_router, prefix="/api", tags=["Tickets"])
+    if admin_router:
+        app.include_router(admin_router, prefix="/api", tags=["Admin"])
+    if auth_router:
+        app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
     if templates_router:
         app.include_router(templates_router, prefix="/api", tags=["Templates"])
     if uploads_router:
@@ -99,6 +108,8 @@ try:
         app.include_router(render_router, prefix="/api", tags=["Render"])
     if files_router:
         app.include_router(files_router, prefix="/api", tags=["Files"])
+    if events_router:
+        app.include_router(events_router, prefix="/api", tags=["Events"])
     logging.info("Routers mounted successfully")
 except Exception as e:
     logging.error(f"Error mounting routers: {e}")

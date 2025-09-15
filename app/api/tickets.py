@@ -240,3 +240,38 @@ def get_all_tickets(
         )
         for t in tickets
     ]
+# ---------------------------
+# Get Single Ticket (Viewer/Admin)
+# ---------------------------
+@router.get("/tickets/{ticket_id}", response_model=TicketResponse)
+def get_ticket(
+    ticket_id: str,
+    session: Session = Depends(get_session),
+    viewer: User = Depends(require_permission("view_ticket")),
+):
+    """
+    Retrieve a single ticket by its ID.
+    Requires 'view_ticket' permission.
+    """
+    try:
+        ticket = session.exec(select(Ticket).where(Ticket.ticket_id == ticket_id)).first()
+        if not ticket:
+            raise HTTPException(status_code=404, detail="Ticket not found")
+
+        return TicketResponse(
+            ticket_number=ticket.ticket_number,
+            name=ticket.name,
+            id_card_number=ticket.id_card_number,
+            date_of_birth=ticket.date_of_birth,
+            phone_number=ticket.phone_number,
+            ticket_id=ticket.ticket_id,
+            qr=generate_qr(ticket.ticket_id),
+            status="already_checked_in" if ticket.used else "valid",
+            event=ticket.event,
+            timestamp=ticket.scanned_at
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error retrieving ticket {ticket_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
