@@ -49,4 +49,17 @@ echo "📥 Fetching template..."
 curl -s -L -X GET "$BASE_URL/api/templates/$TEMPLATE_ID" \
   -H "Authorization: Bearer $TOKEN" | jq
 
-echo "🎯 Backend Phase 4D test complete."
+echo "🎨 Rendering ticket..."
+curl -s -L -X GET "$BASE_URL/api/render/$TEMPLATE_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  --output phase4d_render_test.png
+
+if [[ ! -s phase4d_render_test.png ]]; then
+  echo "❌ Rendered PNG is empty or missing"
+  exit 1
+fi
+
+FILE_SIZE=$(stat -c%s "phase4d_render_test.png")
+echo "✅ Rendered PNG saved as phase4d_render_test.png (${FILE_SIZE} bytes)"
+
+echo "🎯 Backend Phase 4D full test complete."

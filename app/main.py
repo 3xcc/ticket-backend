@@ -7,7 +7,11 @@ from contextlib import asynccontextmanager
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 # Load .env in local dev; on Render this will simply pick up the existing env vars
-load_dotenv()
+try:
+    load_dotenv()
+    logging.info(".env loaded successfully (if present)")
+except Exception as e:
+    logging.warning(f"Could not load .env file: {e}")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,18 +20,30 @@ from sqlmodel import SQLModel
 from app.db.engine import engine
 
 # Core routers (must exist)
-from app.api.tickets import router as tickets_router
-from app.routes.admin import router as admin_router
-from app.routes.auth import router as auth_router
+try:
+    from app.api.tickets import router as tickets_router
+    from app.routes.admin import router as admin_router
+    from app.routes.auth import router as auth_router
+    logging.info("Core routers loaded successfully")
+except ImportError as e:
+    logging.critical(f"Failed to import core routers: {e}")
+    raise
+except Exception as e:
+    logging.critical(f"Unexpected error importing core routers: {e}")
+    raise
 
 # Optional Phase 4D+ routers
-def safe_import_router(path, name):
+def safe_import_router(path: str, name: str):
     try:
         module = __import__(path, fromlist=["router"])
-        logging.info(f"{name} router loaded")
-        return getattr(module, "router", None)
+        router = getattr(module, "router", None)
+        if router:
+            logging.info(f"{name} router loaded")
+        else:
+            logging.warning(f"{name} router found but has no 'router' attribute")
+        return router
     except ImportError:
-        logging.warning(f"{name} router not loaded")
+        logging.warning(f"{name} router not found — skipping")
         return None
     except Exception as e:
         logging.error(f"Error loading {name} router: {e}")
@@ -57,27 +73,35 @@ app = FastAPI(
 )
 
 # CORS setup
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[os.getenv("FRONTEND_URL", "*")],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+try:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[os.getenv("FRONTEND_URL", "*")],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    logging.info("CORS middleware configured")
+except Exception as e:
+    logging.error(f"Error configuring CORS: {e}")
 
 # Mount routers with consistent /api prefix
-app.include_router(tickets_router, prefix="/api", tags=["Tickets"])
-app.include_router(admin_router, prefix="/api", tags=["Admin"])
-app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
+try:
+    app.include_router(tickets_router, prefix="/api", tags=["Tickets"])
+    app.include_router(admin_router, prefix="/api", tags=["Admin"])
+    app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 
-if templates_router:
-    app.include_router(templates_router, prefix="/api", tags=["Templates"])
-if uploads_router:
-    app.include_router(uploads_router, prefix="/api", tags=["Uploads"])
-if render_router:
-    app.include_router(render_router, prefix="/api", tags=["Render"])
-if files_router:
-    app.include_router(files_router, prefix="/api", tags=["Files"])
+    if templates_router:
+        app.include_router(templates_router, prefix="/api", tags=["Templates"])
+    if uploads_router:
+        app.include_router(uploads_router, prefix="/api", tags=["Uploads"])
+    if render_router:
+        app.include_router(render_router, prefix="/api", tags=["Render"])
+    if files_router:
+        app.include_router(files_router, prefix="/api", tags=["Files"])
+    logging.info("Routers mounted successfully")
+except Exception as e:
+    logging.error(f"Error mounting routers: {e}")
 
 # Static mount for template backgrounds
 try:
@@ -94,4 +118,8 @@ except Exception as e:
 # Simple health check
 @app.get("/")
 def root():
-    return {"message": "Ticket Manager API is running"}
+    try:
+        return {"message": "Ticket Manager API is running"}
+    except Exception as e:
+        logging.error(f"Error in health check endpoint: {e}")
+        return {"message": "Error retrieving API status", "error": str(e)}
