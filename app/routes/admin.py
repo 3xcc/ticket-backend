@@ -169,7 +169,7 @@ def export_tickets(
         )
     return results
 
-# 📤 Clean up users
+# 📤 this is the delete user command
 @router.delete("/delete_user")
 def delete_user(
     email: str = Query(..., description="Email of the user to delete"),
