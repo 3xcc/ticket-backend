@@ -28,17 +28,6 @@ resource_exists() {
 cleanup() {
   echo "🧹 Cleaning up test data..."
   if [[ -n "$TOKEN" ]]; then
-    if [[ -n "$TEST_USER_EMAIL" ]] && resource_exists GET "$BASE_URL/api/admin/delete_user?email=$TEST_USER_EMAIL"; then
-      curl -s -X DELETE "$BASE_URL/api/admin/delete_user" \
-        -H "Authorization: Bearer $TOKEN" \
-        --get --data-urlencode "email=$TEST_USER_EMAIL" >/dev/null || true
-      echo "  - Test user deleted"
-    fi
-    if [[ -n "$EVENT_ID" ]] && resource_exists GET "$BASE_URL/api/events/$EVENT_ID"; then
-      curl -s -X DELETE "$BASE_URL/api/events/$EVENT_ID" \
-        -H "Authorization: Bearer $TOKEN" >/dev/null || true
-      echo "  - Test event deleted"
-    fi
     if [[ -n "$TICKET_ID" ]] && resource_exists GET "$BASE_URL/api/tickets/$TICKET_ID"; then
       curl -s -X DELETE "$BASE_URL/api/tickets/$TICKET_ID" \
         -H "Authorization: Bearer $TOKEN" >/dev/null || true
@@ -53,6 +42,17 @@ cleanup() {
       curl -s -X DELETE "$BASE_URL/api/files/$FILE_ID" \
         -H "Authorization: Bearer $TOKEN" >/dev/null || true
       echo "  - Test file deleted"
+    fi
+    if [[ -n "$EVENT_ID" ]] && resource_exists GET "$BASE_URL/api/events/$EVENT_ID"; then
+      curl -s -X DELETE "$BASE_URL/api/events/$EVENT_ID" \
+        -H "Authorization: Bearer $TOKEN" >/dev/null || true
+      echo "  - Test event deleted"
+    fi
+    if [[ -n "$TEST_USER_EMAIL" ]]; then
+      curl -s -X DELETE "$BASE_URL/api/admin/delete_user" \
+        -H "Authorization: Bearer $TOKEN" \
+        --get --data-urlencode "email=$TEST_USER_EMAIL" >/dev/null || true
+      echo "  - Test user deleted"
     fi
   fi
 }
@@ -109,10 +109,16 @@ echo "🎟 Issuing ticket to test user..."
 TICKET_RESPONSE=$(curl -s -L -X POST "$BASE_URL/api/tickets/" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"event_id\":\"$EVENT_ID\",\"user_id\":\"$ADMIN_EMAIL\"}")
+  -d "{
+    \"name\": \"Test User\",
+    \"id_card_number\": \"ID123456\",
+    \"date_of_birth\": \"1990-01-01\",
+    \"phone_number\": \"1234567890\",
+    \"event\": \"$EVENT_ID\"
+  }")
 
 echo "Ticket creation raw response: $TICKET_RESPONSE"
-TICKET_ID=$(echo "$TICKET_RESPONSE" | jq -r '.id' 2>/dev/null || echo "")
+TICKET_ID=$(echo "$TICKET_RESPONSE" | jq -r '.ticket_id' 2>/dev/null || echo "")
 if [[ -z "$TICKET_ID" || "$TICKET_ID" == "null" ]]; then
   echo "❌ Failed to create ticket"
   exit 1

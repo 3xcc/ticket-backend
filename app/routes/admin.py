@@ -12,8 +12,9 @@ from uuid import uuid4
 from app.db.session import get_session
 from app.models.user import User
 from app.models.ticket import Ticket, TicketResponse
+from app.schemas.user import UserResponse  # ✅ make sure this exists
 from app.utils.auth import verify_password, create_token, hash_password
-from app.dependencies.auth import require_permission
+from app.dependencies.auth import require_permission, get_current_user
 
 router = APIRouter(prefix="/admin")
 log = logging.getLogger("uvicorn.error")
@@ -75,6 +76,15 @@ def create_user(
     session.add(new_user)
     session.commit()
     return {"message": f"User {data.email} created"}
+
+# 👤 Get Current Admin User
+@router.get("/me", response_model=UserResponse)
+def read_current_admin(current_user: User = Depends(get_current_user)):
+    """
+    Return the currently authenticated admin/scanner user.
+    Requires a valid JWT.
+    """
+    return current_user
 
 # ✏️ Edit Ticket
 @router.put("/tickets/{ticket_id}", response_model=TicketResponse)
@@ -169,7 +179,7 @@ def export_tickets(
         )
     return results
 
-# 📤 this is the delete user command
+# 🗑️ Delete User
 @router.delete("/delete_user")
 def delete_user(
     email: str = Query(..., description="Email of the user to delete"),
